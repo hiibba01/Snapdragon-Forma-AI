@@ -21,6 +21,48 @@ const Claim = () => {
 
     const fields = form?.fields || [];
 
+    const requiredFields = fields.filter((field) => {
+        if (!field.required) {
+            return false;
+        }
+
+        // If the field is conditional, only count it
+        // when its condition is currently satisfied.
+        if (field.showIf && field.showIf.field) {
+            return (
+                extractedData?.[field.showIf.field] === field.showIf.value
+            );
+        }
+
+        return true;
+    });
+
+    const completedRequiredFields = requiredFields.filter((field) => {
+        const value = extractedData?.[field.id];
+
+        return (
+            value !== undefined &&
+            value !== null &&
+            String(value).trim() !== ""
+        );
+    });
+
+    const missingRequiredFields = requiredFields.filter((field) => {
+        const value = extractedData?.[field.id];
+
+        return (
+            value === undefined ||
+            value === null ||
+            String(value).trim() === ""
+        );
+    });
+
+    const readinessPercentage = requiredFields.length
+        ? Math.round(
+            (completedRequiredFields.length / requiredFields.length) * 100
+        )
+        : 0;
+
     useEffect(() => {
         const fetchForm = async () => {
             try {
@@ -372,6 +414,124 @@ const Claim = () => {
 
                                 
                             </div>
+
+
+                            {/* Claim Readiness */}
+
+                            {extractedData && Object.keys(extractedData).length > 0 && (
+                                <section className="mb-6 mt-4">
+                                    <div className="rounded-2xl bg-zinc-900 border border-orange-500/20 overflow-hidden">
+
+                                        <div className="px-5 py-5">
+
+                                            <div className="flex items-center justify-between mb-4">
+
+                                                <div>
+                                                    <p className="text-sm font-semibold text-white">
+                                                        Claim Readiness
+                                                    </p>
+
+                                                    <p className="text-xs text-zinc-500 mt-1">
+                                                        Based on the information extracted from your description
+                                                    </p>
+                                                </div>
+
+                                                <div className="text-right">
+                                                    <p className="text-2xl font-bold text-orange-400">
+                                                        {readinessPercentage}%
+                                                    </p>
+
+                                                    <p className="text-[10px] uppercase tracking-wider text-zinc-600">
+                                                        Complete
+                                                    </p>
+                                                </div>
+
+                                            </div>
+
+                                            {/* Progress bar */}
+
+                                            <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden mb-5">
+
+                                                <div
+                                                    className="h-full bg-orange-500 rounded-full transition-all duration-500"
+                                                    style={{
+                                                        width: `${readinessPercentage}%`
+                                                    }}
+                                                />
+
+                                            </div>
+
+                                            {/* Completed fields */}
+
+                                            {completedRequiredFields.length > 0 && (
+                                                <div className="mb-4">
+
+                                                    <p className="text-xs font-medium text-zinc-400 mb-2">
+                                                        Information found
+                                                    </p>
+
+                                                    <div className="flex flex-wrap gap-2">
+
+                                                        {completedRequiredFields.map((field) => (
+                                                            <span
+                                                                key={field.id}
+                                                                className="px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-xs text-green-300"
+                                                            >
+                                                                ✓ {field.label}
+                                                            </span>
+                                                        ))}
+
+                                                    </div>
+
+                                                </div>
+                                            )}
+
+                                            {/* Missing fields */}
+
+                                            {missingRequiredFields.length > 0 && (
+                                                <div>
+
+                                                    <p className="text-xs font-medium text-zinc-400 mb-2">
+                                                        Still needed
+                                                    </p>
+
+                                                    <div className="flex flex-wrap gap-2">
+
+                                                        {missingRequiredFields.map((field) => (
+                                                            <span
+                                                                key={field.id}
+                                                                className="px-3 py-1.5 rounded-lg bg-orange-500/10 border border-orange-500/20 text-xs text-orange-300"
+                                                            >
+                                                                ⚠ {field.label}
+                                                            </span>
+                                                        ))}
+
+                                                    </div>
+
+                                                </div>
+                                            )}
+
+                                            {/* Complete message */}
+
+                                            {missingRequiredFields.length === 0 && (
+                                                <div className="mt-4 px-4 py-3 rounded-xl bg-green-500/10 border border-green-500/20">
+
+                                                    <p className="text-sm font-medium text-green-300">
+                                                        ✓ Your claim has all required information.
+                                                    </p>
+
+                                                    <p className="text-xs text-zinc-500 mt-1">
+                                                        Review the details below before submitting.
+                                                    </p>
+
+                                                </div>
+                                            )}
+
+                                        </div>
+
+                                    </div>
+                                </section>
+                            )}
 
 
                             {/* Missing Information */}
