@@ -4,6 +4,11 @@ from pydantic import BaseModel
 
 from app.extractor import extract_claim_data
 from app.snapdragon_engine import get_engine_status
+from app.extractor import (
+    extract_claim_data,
+    generate_claim_summary
+)
+
 
 
 app = FastAPI(title="Forma AI Edge Engine")
@@ -20,6 +25,10 @@ app.add_middleware(
 class ExtractionRequest(BaseModel):
     story: str
     fields: list[dict]
+
+class SummaryRequest(BaseModel):
+    story: str
+    extracted_data: dict    
 
 
 @app.get("/")
@@ -46,3 +55,27 @@ def extract(request: ExtractionRequest):
         "success": True,
         "data": result
     }
+
+
+
+@app.post("/summarize")
+def summarize(request: SummaryRequest):
+
+    try:
+        summary = generate_claim_summary(
+            request.story,
+            request.extracted_data
+        )
+
+        return {
+            "success": True,
+            "summary": summary
+        }
+
+    except Exception as error:
+        print("Summary generation error:", repr(error))
+
+        return {
+            "success": False,
+            "message": str(error)
+        }

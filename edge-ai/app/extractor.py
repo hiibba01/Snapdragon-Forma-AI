@@ -370,3 +370,302 @@ def extract_claim_data(story: str, fields: list[dict]) -> dict:
         story,
         fields
     )
+
+
+def generate_claim_summary(story: str, extracted_data: dict) -> str:
+    """
+    Generate a professional insurance claim summary.
+
+    Uses GenieX on Snapdragon and Gemini fallback
+    on unsupported machines.
+    """
+
+    try:
+        from app.snapdragon_engine import get_engine_status
+        from app.geniex_client import generate_claim_summary as generate_with_geniex
+
+        status = get_engine_status()
+
+        if status.get("available"):
+            return generate_with_geniex(
+                story,
+                extracted_data
+            )
+
+    except Exception as error:
+        print(
+            f"GenieX summary unavailable, using Gemini fallback: {error}"
+        )
+
+    return generate_claim_summary_with_gemini(
+        story,
+        extracted_data
+    )
+
+
+def generate_claim_summary_with_gemini(
+    story: str,
+    extracted_data: dict
+) -> str:
+
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not configured"
+        )
+
+    prompt = f"""
+You are an insurance claim summarization assistant for Forma AI.
+
+Create a concise and professional insurance claim summary.
+
+Original claim:
+{story}
+
+Extracted claim information:
+{json.dumps(extracted_data, indent=2)}
+
+Rules:
+
+- Write 3 to 5 sentences.
+- Mention the incident, vehicle, damage, location,
+  injuries, and other important information when available.
+- Do not invent information.
+- Do not guess missing information.
+- Do not provide legal or insurance advice.
+- Use a professional insurance-report style.
+- Return ONLY the summary text.
+"""
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-2.5-flash:generateContent"
+    )
+
+    response = requests.post(
+        url,
+        params={"key": api_key},
+        json={
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0
+            }
+        },
+        timeout=60
+    )
+
+    if not response.ok:
+        raise RuntimeError(
+            f"Gemini API error "
+            f"{response.status_code}: {response.text}"
+        )
+
+    data = response.json()
+
+    try:
+        summary = (
+            data["candidates"][0]
+            ["content"]["parts"][0]["text"]
+        )
+    except (KeyError, IndexError, TypeError):
+        raise RuntimeError(
+            "Unexpected Gemini response: "
+            f"{json.dumps(data, indent=2)}"
+        )
+
+    return summary.strip()
+
+
+def check_claim_consistency(
+    story: str,
+    extracted_data: dict
+) -> dict:
+    """
+    Check whether the original claim and extracted
+    structured data contain contradictions.
+
+    Uses GenieX on Snapdragon and Gemini fallback
+    on unsupported machines.
+    """
+
+    try:
+        from app.snapdragon_engine import get_engine_status
+        from app.geniex_client import check_consistency_with_geniex
+
+        status = get_engine_status()
+
+        if status.get("available"):
+            return check_consistency_with_geniex(
+                story,
+                extracted_data
+            )
+
+    except Exception as error:
+        print(
+            f"GenieX consistency check unavailable, "
+            f"using Gemini fallback: {error}"
+        )
+
+    return check_consistency_with_gemini(
+        story,
+        extracted_data
+    )
+
+
+def check_consistency_with_gemini(
+    story: str,
+    extracted_data: dict
+) -> dict:
+
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not configured"
+        )
+
+    prompt = f"""
+You are the claim validation engine for Forma AI,
+an intelligent automobile insurance claim system.
+
+Compare the original insurance claim with the
+structured information extracted from it.
+
+ORIGINAL CLAIM:
+{story}
+
+EXTRACTED INFORMATION:
+{json.dumps(extracted_data, indent=2)}
+
+Your task is to identify contradictions or
+potential inconsistencies between the original
+claim and the extracted information.
+
+Examples of inconsistencies:
+
+- Claim says nobody was injured, but injuries says yes.
+- Claim says vehicle is drivable, but vehicleDrivable says no.
+- Claim says no towing was required, but towingRequired says yes.
+- Claim describes a deer collision, but incidentType says vehicle_collision.
+- Claim says no police report was filed, but policeReport says yes.
+- Claim says another vehicle was not involved, but anotherVehicle says yes.
+- Extracted information contains a value that directly conflicts
+  with information explicitly stated in the original claim.
+
+IMPORTANT RULES:
+
+1. Only flag genuine contradictions or strong inconsistencies.
+2. Do not flag information that is simply missing.
+3. Do not guess.
+4. Do not invent facts.
+5. Do not provide legal or insurance advice.
+6. If everything is consistent, return an empty issues array.
+7. Return ONLY valid JSON.
+8. Do not return markdown.
+9. Do not return explanations outside the JSON object.
+
+Return this exact structure:
+
+{{
+    "consistent": true,
+    "issues": [
+        {{
+            "field": "fieldId",
+            "severity": "high",
+            "message": "Description of the inconsistency."
+        }}
+    ]
+}}
+
+Severity must be one of:
+- high
+- medium
+- low
+
+If there are no inconsistencies:
+
+{{
+    "consistent": true,
+    "issues": []
+}}
+
+If inconsistencies exist:
+
+{{
+    "consistent": false,
+    "issues": [...]
+}}
+"""
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/gemini-2.5-flash:generateContent"
+    )
+
+    response = requests.post(
+        url,
+        params={"key": api_key},
+        json={
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0,
+                "responseMimeType": "application/json"
+            }
+        },
+        timeout=60
+    )
+
+    if not response.ok:
+        raise RuntimeError(
+            f"Gemini API error "
+            f"{response.status_code}: {response.text}"
+        )
+
+    data = response.json()
+
+    try:
+        content = (
+            data["candidates"][0]
+            ["content"]["parts"][0]["text"]
+        )
+    except (KeyError, IndexError, TypeError):
+        raise RuntimeError(
+            "Unexpected Gemini response: "
+            f"{json.dumps(data, indent=2)}"
+        )
+
+    try:
+        result = json.loads(content.strip())
+    except json.JSONDecodeError:
+        raise RuntimeError(
+            f"Gemini returned invalid JSON: {content}"
+        )
+
+    if not isinstance(result, dict):
+        raise RuntimeError(
+            "Consistency check response is not a JSON object"
+        )
+
+    return {
+        "consistent": bool(
+            result.get("consistent", True)
+        ),
+        "issues": result.get("issues", [])
+    }    

@@ -136,3 +136,58 @@ def parse_json_response(content: str, fields: list[dict]) -> dict:
         for key, value in result.items()
         if key in valid_field_ids
     }
+
+
+def generate_claim_summary(story: str, extracted_data: dict) -> str:
+    prompt = f"""
+You are the local AI claim summarization engine for Forma AI.
+
+Create a concise, professional insurance claim summary.
+
+Original claim:
+{story}
+
+Extracted claim information:
+{json.dumps(extracted_data, indent=2)}
+
+Rules:
+- Write 3 to 5 sentences.
+- Mention the incident, vehicle, damage, location, injuries,
+  and other important information when available.
+- Do not invent information.
+- Do not make assumptions.
+- Do not provide legal or insurance advice.
+- Use a professional insurance-report style.
+- Return ONLY the summary text.
+"""
+
+    response = requests.post(
+        GENIEX_URL,
+        json={
+            "model": GENIEX_MODEL,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0
+        },
+        timeout=120
+    )
+
+    if not response.ok:
+        raise RuntimeError(
+            f"GenieX service returned {response.status_code}: "
+            f"{response.text}"
+        )
+
+    result = response.json()
+
+    try:
+        return result["choices"][0]["message"]["content"].strip()
+    except (KeyError, IndexError, TypeError):
+        raise RuntimeError(
+            f"Unexpected GenieX response: "
+            f"{json.dumps(result, indent=2)}"
+        )

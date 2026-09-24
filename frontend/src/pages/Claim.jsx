@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Sparkles, ShieldCheck, ArrowRight, LoaderCircle, AlertCircle, FileText, Brain, Lock, CheckCircle2 } from "lucide-react";
+import { Sparkles, ShieldCheck, ArrowRight, LoaderCircle, AlertCircle, FileText, Brain, Lock, CheckCircle2, FileCheck } from "lucide-react";
 import API from "../api/axios.js";
 import formaLogo from "../assets/formaa.png"
 import DynamicForm from "../components/DynamicForm.jsx";
@@ -12,11 +12,14 @@ const Claim = () => {
     const [extractedData, setExtractedData] = useState({});
     const [extracting, setExtracting] = useState(false);
     const [engineStatus, setEngineStatus] = useState(null);
+    const [claimSummary, setClaimSummary] = useState("");
+    const [generatingSummary, setGeneratingSummary] = useState(false);
     
 
     const handleNewClaim = () => {
         setStory("");
-        setExtractedData(null);
+        setExtractedData({});
+        setClaimSummary("");
     };
 
     const fields = form?.fields || [];
@@ -104,30 +107,71 @@ const Claim = () => {
     }, []);
 
     const handleExtract = async () => {
-    if (!story.trim()) {
-        return;
-    }
+        if (!story.trim()) {
+            return;
+        }
 
-    try {
-        setExtracting(true);
+        try {
+            setExtracting(true);
 
-        const response = await API.post("/ai/extract", {
-            story,
-            fields
-        });
+            const response = await API.post("/ai/extract", {
+                story,
+                fields
+            });
 
-        console.log("AI extracted data:", response.data);
+            console.log("AI extracted data:", response.data);
 
-        setExtractedData(response.data.data);
+            setExtractedData(response.data.data);
 
-        console.log("AI extracted fields:", Object.keys(response.data.data));
+            console.log("AI extracted fields:", Object.keys(response.data.data));
 
-    } catch (error) {
-        console.error("AI extraction failed:", error);
-    } finally {
-        setExtracting(false);
-    }
-};
+        } catch (error) {
+            console.error("AI extraction failed:", error);
+        } finally {
+            setExtracting(false);
+        }
+    };
+
+
+    const handleGenerateSummary = async () => {
+
+        if (!story.trim() || !Object.keys(extractedData).length) {
+            return;
+        }
+
+        try {
+
+            setGeneratingSummary(true);
+
+            const response = await API.post(
+                "/ai/summarize",
+                {
+                    story,
+                    extractedData
+                }
+            );
+
+            console.log(
+                "AI claim summary:",
+                response.data
+            );
+
+            setClaimSummary(
+                response.data.summary
+            );
+
+        } catch (error) {
+
+            console.error(
+                "Claim summary generation failed:",
+                error
+            );
+
+        } finally {
+
+            setGeneratingSummary(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -531,6 +575,94 @@ const Claim = () => {
 
                                     </div>
                                 </section>
+                            )}
+
+
+                            {/* AI Claim Summary */}
+
+                            {Object.keys(extractedData).length > 0 && (
+                                <div className="mt-6 p-5 rounded-2xl bg-zinc-900/70 border border-zinc-800">
+
+                                    <div className="flex items-center justify-between gap-4">
+
+                                        <div className="flex items-center gap-3">
+
+                                            <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
+
+                                                <FileCheck
+                                                    size={19}
+                                                    className="text-orange-400"
+                                                />
+
+                                            </div>
+
+                                            <div>
+
+                                                <p className="text-sm font-semibold text-zinc-200">
+                                                    AI Claim Summary
+                                                </p>
+
+                                                <p className="text-xs text-zinc-500">
+                                                    Generate an insurance-ready summary
+                                                </p>
+
+                                            </div>
+
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleGenerateSummary}
+                                            disabled={generatingSummary}
+                                            className="px-4 py-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-medium hover:bg-orange-500/20 transition disabled:opacity-50 flex items-center gap-2"
+                                        >
+
+                                            {generatingSummary ? (
+                                                <>
+                                                    <LoaderCircle
+                                                        size={15}
+                                                        className="animate-spin"
+                                                    />
+
+                                                    Generating...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles size={15} />
+
+                                                    Generate Summary
+                                                </>
+                                            )}
+
+                                        </button>
+
+                                    </div>
+
+
+                                    {claimSummary && (
+                                        <div className="mt-5 p-4 rounded-xl bg-black/20 border border-zinc-800">
+
+                                            <div className="flex items-center gap-2 mb-3">
+
+                                                <Brain
+                                                    size={15}
+                                                    className="text-orange-400"
+                                                />
+
+                                                <p className="text-xs font-medium text-zinc-300">
+                                                    AI-generated claim summary
+                                                </p>
+
+                                            </div>
+
+                                            <p className="text-sm leading-6 text-zinc-300">
+                                                {claimSummary}
+                                            </p>
+
+                                        </div>
+                                    )}
+
+                                </div>
                             )}
 
 

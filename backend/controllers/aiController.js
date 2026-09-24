@@ -1,4 +1,4 @@
-import { extractClaimData } from "../services/ai.service.js";
+import { extractClaimData, generateClaimSummary } from "../services/ai.service.js";
 
 export const extractClaim = async (req, res) => {
     try {
@@ -31,6 +31,54 @@ export const extractClaim = async (req, res) => {
         res.status(500).json({
             success: false,
             message: "Failed to extract claim information!"
+        });
+    }
+};
+
+
+export const generateSummary = async (req, res) => {
+
+    try {
+
+        const {
+            story,
+            extractedData
+        } = req.body;
+
+        if (!story || !story.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Claim description is required."
+            });
+        }
+
+        if (!extractedData) {
+            return res.status(400).json({
+                success: false,
+                message: "Extracted claim data is required."
+            });
+        }
+
+        const summary = await generateClaimSummary(
+            story,
+            extractedData
+        );
+
+        res.status(200).json({
+            success: true,
+            summary
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Claim summary error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message: "Failed to generate claim summary."
         });
     }
 };
