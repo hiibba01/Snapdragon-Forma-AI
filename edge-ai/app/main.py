@@ -6,7 +6,8 @@ from app.extractor import extract_claim_data
 from app.snapdragon_engine import get_engine_status
 from app.extractor import (
     extract_claim_data,
-    generate_claim_summary
+    generate_claim_summary,
+    check_claim_consistency
 )
 
 
@@ -28,7 +29,11 @@ class ExtractionRequest(BaseModel):
 
 class SummaryRequest(BaseModel):
     story: str
-    extracted_data: dict    
+    extracted_data: dict   
+
+class ConsistencyRequest(BaseModel):
+    story: str
+    extracted_data: dict     
 
 
 @app.get("/")
@@ -79,3 +84,28 @@ def summarize(request: SummaryRequest):
             "success": False,
             "message": str(error)
         }
+
+@app.post("/consistency")
+def consistency(request: ConsistencyRequest):
+    try:
+        result = check_claim_consistency(
+            request.story,
+            request.extracted_data
+        )
+
+        return {
+            "success": True,
+            "consistent": result.get("consistent", True),
+            "issues": result.get("issues", [])
+        }
+
+    except Exception as error:
+        print(
+            "Consistency check error:",
+            repr(error)
+        )
+
+        return {
+            "success": False,
+            "message": str(error)
+        }    

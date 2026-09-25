@@ -61,3 +61,44 @@ export const generateClaimSummary = async (
 
     return result.summary;
 };
+
+
+export const checkClaimConsistency = async (
+    story,
+    extractedData
+) => {
+
+    const response = await fetch(
+        "http://127.0.0.1:8001/consistency",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                story,
+                extracted_data: extractedData
+            })
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(
+            `Edge AI consistency service returned ${response.status}`
+        );
+    }
+
+    const result = await response.json();
+
+    if (!result.success) {
+        throw new Error(
+            result.message ||
+            "Edge AI consistency check failed"
+        );
+    }
+
+    return {
+        consistent: result.consistent,
+        issues: result.issues || []
+    };
+};

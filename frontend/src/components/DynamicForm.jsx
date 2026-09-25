@@ -1,13 +1,23 @@
-import { useForm } from "react-hook-form";
-import { useEffect, useState } from "react";
-import { CheckCircle2, ChevronDown } from "lucide-react";
+import { useForm, useWatch } from "react-hook-form";
+import { useEffect, useState, forwardRef, useImperativeHandle } from "react";
+import { CheckCircle2, ChevronDown, Upload, X } from "lucide-react";
 import API from "../api/axios.js";
 
-const DynamicForm = ({ fields,  extractedData, onNewClaim }) => {
-    const {
+const DynamicForm = forwardRef(
+    (
+        {
+            fields,
+            extractedData,
+            onNewClaim,
+            onFormChange
+        },
+        ref
+    ) => {
+
+        const {
         register,
         handleSubmit,
-        watch,
+        control,
         setValue,
         reset,
         formState: { errors }
@@ -17,6 +27,24 @@ const DynamicForm = ({ fields,  extractedData, onNewClaim }) => {
 
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [evidenceFiles, setEvidenceFiles] = useState([]);
+
+    const handleEvidenceUpload = (event) => {
+        const files = Array.from(event.target.files || []);
+
+        setEvidenceFiles((previousFiles) => [
+            ...previousFiles,
+            ...files
+        ]);
+
+        event.target.value = "";
+    };
+
+    const removeEvidenceFile = (index) => {
+        setEvidenceFiles((previousFiles) =>
+            previousFiles.filter((_, fileIndex) => fileIndex !== index)
+        );
+    };
 
     useEffect(() => {
         if (!extractedData) {
@@ -65,7 +93,15 @@ const DynamicForm = ({ fields,  extractedData, onNewClaim }) => {
         });
     }, [extractedData, setValue, fields]);
 
-    const values = watch();
+    const values = useWatch({
+        control
+    });
+
+    useEffect(() => {
+        if (onFormChange) {
+            onFormChange(values);
+        }
+    }, [values, onFormChange]);
 
     const shouldShowField = (field) => {
         if (!field.showIf || !field.showIf.field) {
@@ -77,26 +113,59 @@ const DynamicForm = ({ fields,  extractedData, onNewClaim }) => {
         return currentValue === field.showIf.value;
     };
 
-    const onSubmit = async(data) => {
+    const onSubmit = async (data) => {
         try {
             setSubmitting(true);
-            const response = await API.post("/claims", {
-                formId: "auto-insurance-claim",
-                data
+
+            const formData = new FormData();
+
+            formData.append(
+                "formId",
+                "auto-insurance-claim"
+            );
+
+            formData.append(
+                "data",
+                JSON.stringify(data)
+            );
+
+            evidenceFiles.forEach((file) => {
+                formData.append(
+                    "evidence",
+                    file
+                );
             });
 
-            console.log("Claim submitted:", response.data);
+            const response = await API.post(
+                "/claims",
+                formData
+            );
+
+            console.log(
+                "Claim submitted:",
+                response.data
+            );
 
             setSubmitted(true);
 
         } catch (error) {
 
-            console.error("Claim submission failed:", error);
-            
+            console.error(
+                "Claim submission failed:",
+                error
+            );
+
         } finally {
             setSubmitting(false);
         }
     };
+
+
+    useImperativeHandle(ref, () => ({
+        submit: () => {
+            handleSubmit(onSubmit)();
+        }
+    }));
 
     if (submitted) {
     return (
@@ -209,6 +278,91 @@ const DynamicForm = ({ fields,  extractedData, onNewClaim }) => {
                                 </label>
                             )}
 
+                            {field.id === "photosAvailable" &&
+                            values.photosAvailable === "yes" && (
+                                <div className="mt-4 p-4 rounded-xl bg-zinc-900 border border-zinc-800">
+
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Upload
+                                            size={16}
+                                            className="text-orange-400"
+                                        />
+
+                                        <p className="text-sm font-medium text-zinc-200">
+                                            Upload incident photos or videos
+                                        </p>
+                                    </div>
+
+                                    <p className="text-xs text-zinc-500 mb-4">
+                                        Add photos or videos showing the accident,
+                                        vehicle damage, or surrounding scene.
+                                    </p>
+
+                                    <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border border-dashed border-zinc-700 hover:border-orange-500/50 bg-black/20 cursor-pointer transition">
+
+                                        <Upload
+                                            size={22}
+                                            className="text-orange-400"
+                                        />
+
+                                        <span className="text-sm text-zinc-300">
+                                            Choose photos or videos
+                                        </span>
+
+                                        <span className="text-xs text-zinc-600">
+                                            JPG, PNG, WEBP, MP4, MOV
+                                        </span>
+
+                                        <input
+                                            type="file"
+                                            accept="image/*,video/*"
+                                            multiple
+                                            onChange={handleEvidenceUpload}
+                                            className="hidden"
+                                        />
+
+                                    </label>
+
+                                    {evidenceFiles.length > 0 && (
+                                        <div className="mt-4 space-y-2">
+
+                                            <p className="text-xs uppercase tracking-wider text-zinc-600">
+                                                Selected evidence
+                                            </p>
+
+                                            {evidenceFiles.map((file, index) => (
+                                                <div
+                                                    key={`${file.name}-${index}`}
+                                                    className="flex items-center justify-between gap-3 p-3 rounded-lg bg-black/30 border border-zinc-800"
+                                                >
+
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm text-zinc-300 truncate">
+                                                            {file.name}
+                                                        </p>
+
+                                                        <p className="text-xs text-zinc-600 mt-1">
+                                                            {(file.size / (1024 * 1024)).toFixed(2)} MB
+                                                        </p>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeEvidenceFile(index)}
+                                                        className="shrink-0 p-2 rounded-lg hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition"
+                                                    >
+                                                        <X size={15} />
+                                                    </button>
+
+                                                </div>
+                                            ))}
+
+                                        </div>
+                                    )}
+
+                                </div>
+                            )}
+
                             {errors[field.id] && (
                                 <p className="mt-2 text-sm text-red-400">
                                     {errors[field.id].message}
@@ -230,6 +384,7 @@ const DynamicForm = ({ fields,  extractedData, onNewClaim }) => {
             </div>
         </form>
     );
-};
+}
+);
 
 export default DynamicForm;

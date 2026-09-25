@@ -1,4 +1,4 @@
-import { extractClaimData, generateClaimSummary } from "../services/ai.service.js";
+import { extractClaimData, generateClaimSummary, checkClaimConsistency } from "../services/ai.service.js";
 
 export const extractClaim = async (req, res) => {
     try {
@@ -79,6 +79,55 @@ export const generateSummary = async (req, res) => {
         res.status(500).json({
             success: false,
             message: "Failed to generate claim summary."
+        });
+    }
+};
+
+
+export const checkConsistency = async (req, res) => {
+    try {
+
+        const {
+            story,
+            extractedData
+        } = req.body;
+
+        if (!story || !story.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Claim description is required."
+            });
+        }
+
+        if (!extractedData) {
+            return res.status(400).json({
+                success: false,
+                message: "Extracted claim data is required."
+            });
+        }
+
+        const result = await checkClaimConsistency(
+            story,
+            extractedData
+        );
+
+        res.status(200).json({
+            success: true,
+            consistent: result.consistent,
+            issues: result.issues
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Claim consistency error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message: error.message ||
+                "Failed to check claim consistency."
         });
     }
 };

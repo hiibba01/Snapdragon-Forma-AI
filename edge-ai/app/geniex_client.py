@@ -191,3 +191,123 @@ Rules:
             f"Unexpected GenieX response: "
             f"{json.dumps(result, indent=2)}"
         )
+
+
+def check_consistency_with_geniex(
+    story: str,
+    extracted_data: dict
+) -> dict:
+
+    prompt = f"""
+You are the claim validation engine for Forma AI.
+
+Compare the original insurance claim with the
+structured information extracted from it.
+
+ORIGINAL CLAIM:
+{story}
+
+EXTRACTED INFORMATION:
+{json.dumps(extracted_data, indent=2)}
+
+Identify contradictions or potential inconsistencies.
+
+Rules:
+
+- Only flag genuine contradictions.
+- Do not flag missing information.
+- Do not guess.
+- Do not invent facts.
+- Do not provide legal or insurance advice.
+- If everything is consistent, return an empty issues array.
+- Return ONLY valid JSON.
+- Do not return markdown.
+
+Return exactly:
+
+{{
+    "consistent": true,
+    "issues": [
+        {{
+            "field": "fieldId",
+            "severity": "high",
+            "message": "Description of the inconsistency."
+        }}
+    ]
+}}
+
+Severity must be one of:
+- high
+- medium
+- low
+
+If there are no inconsistencies:
+
+{{
+    "consistent": true,
+    "issues": []
+}}
+
+If inconsistencies exist:
+
+{{
+    "consistent": false,
+    "issues": [...]
+}}
+"""
+
+    response = requests.post(
+        GENIEX_URL,
+        json={
+            "model": GENIEX_MODEL,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0
+        },
+        timeout=120
+    )
+
+    if not response.ok:
+        raise RuntimeError(
+            f"GenieX service returned "
+            f"{response.status_code}: "
+            f"{response.text}"
+        )
+
+    result = response.json()
+
+    try:
+        content = (
+            result["choices"][0]
+            ["message"]["content"]
+        )
+    except (KeyError, IndexError, TypeError):
+        raise RuntimeError(
+            "Unexpected GenieX response: "
+            f"{json.dumps(result, indent=2)}"
+        )
+
+    content = content.strip()
+
+    if content.startswith("```"):
+        content = content.replace("```json", "")
+        content = content.replace("```", "")
+        content = content.strip()
+
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        raise RuntimeError(
+            f"GenieX returned invalid JSON: {content}"
+        )
+
+    return {
+        "consistent": bool(
+            data.get("consistent", True)
+        ),
+        "issues": data.get("issues", [])
+    }    
